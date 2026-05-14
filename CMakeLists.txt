@@ -1,65 +1,33 @@
-cmake_minimum_required(VERSION 3.16)
-
-project(Leopard-Watchdog C CXX)
+cmake_minimum_required(VERSION 3.10)
+project(pardus-health-check VERSION 1.0.0 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# Set default build type
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
-endif()
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -O2")
 
 # Main executable
-add_executable(leopard-watchdog
+add_executable(pardus-health-check
     src/main.c
-    src/log.c
-    src/config.c
-    src/report.c
-    src/database.c
+    src/logger.c
     src/ui.c
-    src/apt_audit.c
-    src/hardware_inventory.c
     src/system_health.c
-    src/port-scanner/portScanner.cpp
-    src/port-scanner/TCPUtilities.cpp
-    src/port-scanner/UDPUtilities.cpp
-    src/port-scanner/CommonUtilities.cpp
-    src/port-scanner/optionsManager.cpp
-    src/port-scanner/Job.cpp
-    src/port-scanner/port_scanner_wrapper.cpp
+    src/package_analyzer.c
+    src/port_scanner.c
+    src/hardware_inventory.c
+    src/report_generator.c
 )
 
-target_include_directories(leopard-watchdog PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/src/port-scanner
-    ${CMAKE_SOURCE_DIR}/headers
-)
+target_include_directories(pardus-health-check PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-# Compiler warnings (important for system tools)
-target_compile_options(leopard-watchdog PRIVATE
-    -Wall
-    -Wextra
-    -Wpedantic
-    -Wformat=2
-    -Wno-unused-parameter
-)
-
-# Optimization flags
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    target_compile_options(leopard-watchdog PRIVATE -O3)
-else()
-    target_compile_options(leopard-watchdog PRIVATE -g -O0)
+# Optional: Python module for advanced features
+find_package(Python3 COMPONENTS Development)
+if(Python3_FOUND)
+    message(STATUS "Python3 found - enabling enhanced modules")
+    target_link_libraries(pardus-health-check PRIVATE ${Python3_LIBRARIES})
+    target_include_directories(pardus-health-check PRIVATE ${Python3_INCLUDE_DIRS})
 endif()
 
-# Required system libraries
-target_link_libraries(leopard-watchdog PRIVATE
-    m  # Math library
-    pthread  # Thread library for port scanner
-)
-
-# Installation rules (future)
-# install(TARGETS leopard-watchdog DESTINATION /usr/local/bin)
-# install(FILES leopard-watchdog.conf DESTINATION /etc/leopard-watchdog)
+# Installation
+install(TARGETS pardus-health-check DESTINATION bin)
+install(FILES pardus-health-check.1 DESTINATION share/man/man1)
+install(FILES README.md DESTINATION share/doc/pardus-health-check)

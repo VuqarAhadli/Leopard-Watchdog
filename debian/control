@@ -1,0 +1,34 @@
+Source: pardus-health-check
+Section: admin
+Priority: standard
+Maintainer: Pardus Development <info@pardus.org.tr>
+Build-Depends: debhelper-compat (= 13), cmake
+Standards-Version: 4.6.0
+Homepage: https://github.com/pardus/pardus-health-check
+Vcs-Browser: https://github.com/pardus/pardus-health-check
+Vcs-Git: https://github.com/pardus/pardus-health-check.git
+
+Package: pardus-health-check
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, apt, systemd
+Recommends: curl, lsusb, lspci, dmidecode
+Suggests: apache2-utils (for web server checks)
+Description: Modular security and system health check tool for Pardus
+ Pardus System Health Check is a comprehensive security assessment and system
+ health evaluation tool designed specifically for Pardus GNU/Linux systems.
+ .
+ It performs automated scanning across four main modules:
+  * APT Package Analysis - detects outdated and insecure packages
+  * Open Port Scanning - identifies network security risks
+  * Hardware Inventory - monitors connected devices and drivers
+  * System Health Monitoring - evaluates CPU, memory, disk, and services
+ .
+ Features:
+  * Modular architecture for independent component checks
+  * Risk-based severity scoring (0-100 scale)
+  * Multiple output formats: colored CLI, JSON, and HTML
+  * Actionable recommendations for each finding
+  * Lightweight C implementation with minimal dependencies
+ .
+ The tool is optimized for Pardus systems and can be integrated into
+ monitoring systems via JSON output format.

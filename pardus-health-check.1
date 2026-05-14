@@ -1,0 +1,149 @@
+.TH PARDUS-HEALTH-CHECK 1 "May 2026" "pardus-health-check 1.0.0" "User Commands"
+.SH NAME
+pardus-health-check \- Modular security and system health check tool for Pardus GNU/Linux
+.SH SYNOPSIS
+.B pardus-health-check
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B pardus-health-check
+is a comprehensive security and system health evaluation tool for Pardus GNU/Linux systems.
+It performs automated scans across four main modules, detects configuration issues, and
+generates actionable diagnostic reports.
+
+The tool evaluates system security on a scale of 0-100 and provides specific recommendations
+for addressing identified issues.
+.SH OPTIONS
+.TP
+.B \-h, \-\-help
+Display help message and exit.
+.TP
+.B \-v, \-\-verbose
+Enable verbose logging output for detailed diagnostics.
+.TP
+.B \-c, \-\-cli
+Output report as colored terminal text (default).
+.TP
+.B \-j, \-\-json FILE
+Generate machine-readable JSON report and save to FILE.
+.TP
+.B \-w, \-\-html FILE
+Generate web-viewable HTML report and save to FILE.
+.TP
+.B \-a, \-\-all
+Run all security checks (default behavior).
+.TP
+.B \-p, \-\-packages
+Check only APT package status and security updates.
+.TP
+.B \-n, \-\-network
+Check only open ports and network services.
+.TP
+.B \-d, \-\-hardware
+Check only hardware and connected devices.
+.TP
+.B \-s, \-\-system
+Check only system health (CPU, memory, disk, services).
+.SH MODULES
+.TP
+.B APT Package Analysis
+Detects outdated packages, missing security updates, deprecated software,
+and broken dependencies. Analyzes package database against repository information.
+.TP
+.B Open Port Scanning
+Identifies active network ports and running services. Categorizes ports by risk level
+and identifies unexpected or dangerous open connections.
+.TP
+.B Hardware Inventory
+Enumerates connected hardware, USB devices, kernel modules, and PCI devices.
+Identifies unknown or unsigned components that may indicate configuration issues.
+.TP
+.B System Health Monitoring
+Continuously monitors CPU usage, memory consumption, disk space, failed services,
+and critical system logs. Generates unified health score with recommendations.
+.SH EXAMPLES
+.TP
+Run a complete system security check with colored output:
+.B pardus-health-check --all
+.TP
+Generate a JSON report for integration with monitoring systems:
+.B pardus-health-check --json /tmp/health-report.json
+.TP
+Create an HTML report for sharing with system administrators:
+.B pardus-health-check --html ~/health-report.html
+.TP
+Check only package security status:
+.B pardus-health-check --packages
+.TP
+Run with verbose logging for debugging:
+.B pardus-health-check --all --verbose
+.SH OUTPUT FORMATS
+.TP
+.B CLI (Colored Terminal)
+Human-readable format with ANSI color codes showing:
+- Overall security score (0-100)
+- Breakdown by module
+- Detailed findings with severity levels
+- Actionable recommendations
+.TP
+.B JSON (Machine-Readable)
+Structured data format suitable for:
+- Integration with monitoring systems
+- Automated processing and alerting
+- Long-term trend analysis
+- Script automation
+.TP
+.B HTML (Web-Viewable)
+Styled HTML report for:
+- Viewing in web browsers
+- Sharing with stakeholders
+- Generating reports for audits
+- Professional presentation
+.SH RISK LEVELS
+Findings are categorized by severity:
+.TP
+.B CRITICAL (🚨)
+Immediate action required. Security breach risk.
+.TP
+.B HIGH (⚠️)
+Important issues affecting system security.
+.TP
+.B MEDIUM (⚡)
+Configuration issues that should be addressed.
+.TP
+.B LOW (ℹ️)
+Items to monitor and review.
+.TP
+.B INFO (ℹ️)
+Informational findings for awareness.
+.SH FILES
+.TP
+.B /tmp/pardus-health-check.log
+Default log file for all check results.
+.TP
+.B /var/log/pardus-health-check/
+Optional persistent log directory.
+.SH EXIT STATUS
+.TP
+.B 0
+All checks completed successfully.
+.TP
+.B 1
+Error occurred during execution.
+.SH DEPENDENCIES
+.TP
+Core utilities: apt, systemctl, ss/netstat, dpkg
+.TP
+Optional: dmidecode (for BIOS info), lsusb, lspci, lsblk
+.SH SEE ALSO
+.BR apt (8),
+.BR systemctl (1),
+.BR ss (8),
+.BR netstat (8),
+.BR top (1)
+.SH AUTHOR
+Pardus Development Community
+.SH BUGS
+Report bugs to: [bug tracker URL]
+.SH LICENSE
+This tool is released under the MIT License.
+For details, see: /usr/share/doc/pardus-health-check/LICENSE

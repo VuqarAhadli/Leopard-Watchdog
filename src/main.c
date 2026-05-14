@@ -1,244 +1,252 @@
-/*
- * Leopard-Watchdog - Main Entry Point
- *
- * Copyright (c) 2026 Vugar Ahadli
- *
- * Part of the Leopard-Watchdog security and
- * system health auditing framework for Pardus GNU/Linux.
- *
- * Author:  Vugar Ahadli
- * Contact: vuqarahadli17@gmail.com
- */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <getopt.h>
+#include <pardus_health_check.h>
 
-#include "common.h"
-#include "../headers/config.h"
-#include "../headers/report.h"
-#include "../headers/database.h"
-#include "../headers/ui.h"
-#include "../headers/apt_audit.h"
-#include "../headers/hardware_inventory.h"
-#include "../headers/system_health.h"
-#include "../port-scanner/port_scanner_wrapper.h"
+/* UI functions */
+void ui_print_banner(void);
+void ui_print_header(const char *title);
+void ui_print_module_start(const char *module);
+void ui_print_progress(const char *message, int percent);
+void ui_print_spacing(void);
+void ui_print_help(const char *program_name);
 
-/* Global message types for logging */
-const MessageType_t messages[COUNT] = {
-    [HIGH]    = {    RED_FG,    "WARNING" },
-    [NORMAL]  = { YELLOW_FG,    "NORMAL"  },
-    [LOW]     = {  GREEN_FG,    "INFO"    }
-};
 
-/**
- * Print usage information
- */
-void print_usage(const char *prog_name) {
-    printf("Usage: %s [OPTIONS]\n", prog_name);
-    printf("\nOptions:\n");
-    printf("  --help                 Show this help message\n");
-    printf("  --version              Show version information\n");
-    printf("  --verbose              Enable verbose output\n");
-    printf("  --quiet                Suppress non-critical output\n");
-    printf("  --report FORMAT        Generate report (json, text, html)\n");
-    printf("\nModules:\n");
-    printf("  --full-audit           Run all audit modules\n");
-    printf("  --apt-audit            APT package audit only\n");
-    printf("  --network OPTS         Network port scanner\n");
-    printf("      -i IP              Single IP to scan\n");
-    printf("      -p PORTS           Ports (e.g. 1-1000 or 22,80,443)\n");
-    printf("      --prefix CIDR      IP range (e.g. 192.168.1.0/24)\n");
-    printf("      --file FILE        IPs from file\n");
-    printf("      --scan TYPE        Scan type (SYN, UDP, FIN, NULL, XMAS)\n");
-    printf("      --threads N        Parallel threads (default 1)\n");
-    printf("  --hardware-check       Hardware/software inventory only\n");
-    printf("  --health-check         System health check only\n");
-    printf("\nExamples:\n");
-    printf("  %s --full-audit --verbose\n", prog_name);
-    printf("  %s --apt-audit --report json\n", prog_name);
-    printf("  %s --network -i 192.168.1.1 -p 1-1000\n", prog_name);
-    printf("  %s --network --prefix 192.168.1.0/24 -p 22,80,443 --threads 10\n", prog_name);
-    printf("\n");
+
+Options_t parse_arguments(int argc, char *argv[]) {
+    Options_t opts = {
+        .verbose = 0,
+        .run_all = 1,
+        .check_packages = 1,
+        .check_network = 1,
+        .check_hardware = 1,
+        .check_system = 1,
+        .report_format = REPORT_CLI,
+        .report_file = {0}
+    };
+    
+    struct option long_opts[] = {
+        {"help", no_argument, NULL, 'h'},
+        {"verbose", no_argument, NULL, 'v'},
+        {"quiet", no_argument, NULL, 'q'},
+        {"cli", no_argument, NULL, 'c'},
+        {"json", required_argument, NULL, 'j'},
+        {"html", required_argument, NULL, 'w'},
+        {"all", no_argument, NULL, 'a'},
+        {"packages", no_argument, NULL, 'p'},
+        {"network", no_argument, NULL, 'n'},
+        {"hardware", no_argument, NULL, 'd'},
+        {"system", no_argument, NULL, 's'},
+        {NULL, 0, NULL, 0}
+    };
+    
+    int opt;
+    while ((opt = getopt_long(argc, argv, "hvqcj:w:apnds", long_opts, NULL)) != -1) {
+        switch (opt) {
+            case 'h':
+                ui_print_help(argv[0]);
+                exit(EXIT_SUCCESS);
+            case 'v':
+                opts.verbose = 1;
+                break;
+            case 'q':
+                opts.verbose = 0;
+                break;
+            case 'c':
+                opts.report_format = REPORT_CLI;
+                break;
+            case 'j':
+                opts.report_format = REPORT_JSON;
+                strncpy(opts.report_file, optarg, sizeof(opts.report_file) - 1);
+                break;
+            case 'w':
+                opts.report_format = REPORT_HTML;
+                strncpy(opts.report_file, optarg, sizeof(opts.report_file) - 1);
+                break;
+            case 'a':
+                opts.run_all = 1;
+                opts.check_packages = 1;
+                opts.check_network = 1;
+                opts.check_hardware = 1;
+                opts.check_system = 1;
+                break;
+            case 'p':
+                opts.run_all = 0;
+                opts.check_packages = 1;
+                opts.check_network = 0;
+                opts.check_hardware = 0;
+                opts.check_system = 0;
+                break;
+            case 'n':
+                opts.run_all = 0;
+                opts.check_packages = 0;
+                opts.check_network = 1;
+                opts.check_hardware = 0;
+                opts.check_system = 0;
+                break;
+            case 'd':
+                opts.run_all = 0;
+                opts.check_packages = 0;
+                opts.check_network = 0;
+                opts.check_hardware = 1;
+                opts.check_system = 0;
+                break;
+            case 's':
+                opts.run_all = 0;
+                opts.check_packages = 0;
+                opts.check_network = 0;
+                opts.check_hardware = 0;
+                opts.check_system = 1;
+                break;
+            default:
+                ui_print_help(argv[0]);
+                exit(EXIT_FAILURE);
+        }
+    }
+    
+    return opts;
 }
-
-/**
- * Parse command-line arguments
- */
-int parse_arguments(int argc, char *argv[], Config_t *config) {
-    if (argc < 1) return -1;
-    
-    int i = 1;
-    while (i < argc) {
-        if (strcmp(argv[i], "--help") == 0) {
-            print_usage(argv[0]);
-            return 1;
-        }
-        else if (strcmp(argv[i], "--version") == 0) {
-            printf("Leopard-Watchdog v1.0\n");
-            return 1;
-        }
-        else if (strcmp(argv[i], "--network") == 0) {
-            /* Parse network scanner arguments */
-            const char *ip = NULL;
-            const char *ports = NULL;
-            const char *prefix = NULL;
-            const char *file = NULL;
-            const char *scan_type = "SYN";
-            int threads = 1;
-            
-            i++;
-            while (i < argc && argv[i][0] == '-') {
-                if (strcmp(argv[i], "-i") == 0 && i + 1 < argc) {
-                    ip = argv[++i];
-                }
-                else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
-                    ports = argv[++i];
-                }
-                else if (strcmp(argv[i], "--prefix") == 0 && i + 1 < argc) {
-                    prefix = argv[++i];
-                }
-                else if (strcmp(argv[i], "--file") == 0 && i + 1 < argc) {
-                    file = argv[++i];
-                }
-                else if (strcmp(argv[i], "--scan") == 0 && i + 1 < argc) {
-                    scan_type = argv[++i];
-                }
-                else if (strcmp(argv[i], "--threads") == 0 && i + 1 < argc) {
-                    threads = atoi(argv[++i]);
-                }
-                else {
-                    printf("Unknown network option: %s\n", argv[i]);
-                    return 1;
-                }
-                i++;
-            }
-            
-            if (!ports) {
-                printf("Error: --network requires -p <ports>\n");
-                return 1;
-            }
-            
-            ui_print_banner();
-            ui_print_section("Network Port Scanner");
-            
-            int result = -1;
-            if (ip) {
-                result = run_port_scan(ip, ports, scan_type, threads);
-            }
-            else if (prefix) {
-                result = run_port_scan_prefix(prefix, ports, scan_type, threads);
-            }
-            else if (file) {
-                result = run_port_scan_file(file, ports, scan_type, threads);
-            }
-            else {
-                printf("Error: --network requires -i <IP>, --prefix <CIDR>, or --file <FILE>\n");
-                return 1;
-            }
-            
-            /* Return 1 to signal main() not to run full_audit, exit immediately */
-            return 1;
-        }
-        else if (strcmp(argv[i], "--verbose") == 0) {
-            config->verbose = 1;
-        }
-        else if (strcmp(argv[i], "--quiet") == 0) {
-            config->quiet = 1;
-        }
-        else if (strcmp(argv[i], "--report") == 0 && i + 1 < argc) {
-            strncpy(config->report_format, argv[++i], sizeof(config->report_format) - 1);
-        }
-        i++;
-    }
-    
-    return 0;
-}
-
-/**
- * Run full system audit
- */
-int run_full_audit(const Config_t *config) {
-    int ret = 0;
-    
-    ui_print_section("Starting Full System Audit");
-    
-    /* Module 1: APT Audit */
-    AptAudit_t apt_audit = {0};
-    if (apt_init(&apt_audit) == 0) {
-        if (apt_audit_run(&apt_audit) == 0) {
-            apt_print_results(&apt_audit);
-        }
-        apt_cleanup(&apt_audit);
-    }
-    
-    /* Module 2: Network/Port Scanner - NOTE: Run with --network flag separately */
-    ui_print_section("Network Scanning");
-    printf("  Use: ./leopard-watchdog --network -i <IP> -p <ports>\n");
-    printf("  Example: ./leopard-watchdog --network -i 192.168.1.1 -p 1-1000\n");
-    
-    /* Module 3: Hardware Inventory */
-    Inventory_t inventory = {0};
-    if (inventory_init(&inventory) == 0) {
-        if (inventory_scan_run(&inventory) == 0) {
-            inventory_print_results(&inventory);
-        }
-        inventory_cleanup(&inventory);
-    }
-    
-    /* Module 4: System Health */
-    if (health_init() == 0) {
-        SystemHealth_t health = {0};
-        if (health_check_run(&health) == 0) {
-            health_print_results(&health);
-        }
-        health_cleanup();
-    }
-    
-    /* TODO: Generate report if requested */
-    if (config->report_format[0] != '\0' && strcmp(config->report_format, "text") != 0) {
-        Report_t *report = report_create();
-        if (report) {
-            /* TODO: Populate report with module results */
-            if (strcmp(config->report_format, "json") == 0) {
-                report_export_json(report, "/tmp/leopard-watchdog-report.json");
-            }
-            report_free(report);
-        }
-    }
-    
-    ui_print_section("Audit Complete");
-    LOG(LOW, "Full system audit completed successfully");
-    
-    return ret;
-}
-
-/**
- * Main entry point
- */
+Options_t opts;
 int main(int argc, char *argv[]) {
-    Config_t config = {0};
+    opts = parse_arguments(argc, argv);
     
-    /* Parse configuration */
-    if (config_load(&config) != 0) {
-        LOG(HIGH, "Failed to load configuration");
-        return 1;
+    LOG_init();
+    ui_print_banner();
+    ui_print_header("Pardus System Security & Health Check");
+    
+    Finding_t *all_findings = malloc(256 * sizeof(Finding_t));
+    int total_findings = 0;
+    
+    HealthScore_t score = {
+        .overall_score = 100.0f,
+        .package_score = 100.0f,
+        .network_score = 100.0f,
+        .hardware_score = 100.0f,
+        .system_score = 100.0f,
+        .critical_count = 0,
+        .high_count = 0,
+        .medium_count = 0,
+        .low_count = 0,
+        .total_findings = 0
+    };
+    
+    int progress = 0;
+    int total_modules = 0;
+    if (opts.check_system) total_modules++;
+    if (opts.check_packages) total_modules++;
+    if (opts.check_network) total_modules++;
+    if (opts.check_hardware) total_modules++;
+    
+    /* Module 1: System Health */
+    if (opts.check_system) {
+        ui_print_module_start("Checking System Health (CPU, Memory, Disk, Services)...");
+        Finding_t *findings = NULL;
+        int count = 0;
+        
+        if (module_system_health(&findings, &count) == 0 && findings && count > 0) {
+            memcpy(&all_findings[total_findings], findings, count * sizeof(Finding_t));
+            total_findings += count;
+            score.system_score -= count * 5.0f;  /* Reduce score for each finding */
+        }
+        free(findings);
+        progress++;
+        ui_print_progress("System Health", (progress * 100) / total_modules);
     }
     
-    /* Parse command-line arguments */
-    int arg_ret = parse_arguments(argc, argv, &config);
-    if (arg_ret > 0) return 0;
-    if (arg_ret < 0) {
-        print_usage(argv[0]);
-        return 1;
+    /* Module 2: Package Analyzer */
+    if (opts.check_packages) {
+        ui_print_module_start("Analyzing Packages (outdated, deprecated, broken)...");
+        Finding_t *findings = NULL;
+        int count = 0;
+        
+        if (module_package_analyzer(&findings, &count) == 0 && findings && count > 0) {
+            memcpy(&all_findings[total_findings], findings, count * sizeof(Finding_t));
+            total_findings += count;
+            score.package_score -= count * 5.0f;
+        }
+        free(findings);
+        progress++;
+        ui_print_progress("Package Check", (progress * 100) / total_modules);
     }
     
-    /* Print banner */
-    if (!config.quiet) {
-        ui_print_banner();
+    /* Module 3: Port Scanner */
+    if (opts.check_network) {
+        ui_print_module_start("Scanning Open Ports (network security)...");
+        Finding_t *findings = NULL;
+        int count = 0;
+        
+        if (module_port_scanner(&findings, &count) == 0 && findings && count > 0) {
+            memcpy(&all_findings[total_findings], findings, count * sizeof(Finding_t));
+            total_findings += count;
+            score.network_score -= count * 5.0f;
+        }
+        free(findings);
+        progress++;
+        ui_print_progress("Network Scan", (progress * 100) / total_modules);
     }
     
-    /* Run full audit as default behavior */
-    if (run_full_audit(&config) != 0) {
-        LOG(HIGH, "Audit encountered errors");
-        return 1;
+    /* Module 4: Hardware Inventory */
+    if (opts.check_hardware) {
+        ui_print_module_start("Checking Hardware (unknown devices, drivers)...");
+        Finding_t *findings = NULL;
+        int count = 0;
+        
+        if (module_hardware_inventory(&findings, &count) == 0 && findings && count > 0) {
+            memcpy(&all_findings[total_findings], findings, count * sizeof(Finding_t));
+            total_findings += count;
+            score.hardware_score -= count * 5.0f;
+        }
+        free(findings);
+        progress++;
+        ui_print_progress("Hardware Check", (progress * 100) / total_modules);
     }
     
-    return 0;
+    /* Clamp scores to 0-100 */
+    if (score.package_score < 0) score.package_score = 0;
+    if (score.network_score < 0) score.network_score = 0;
+    if (score.hardware_score < 0) score.hardware_score = 0;
+    if (score.system_score < 0) score.system_score = 0;
+    
+    /* Count findings by severity */
+    for (int i = 0; i < total_findings; i++) {
+        switch (all_findings[i].severity) {
+            case RISK_CRITICAL: score.critical_count++; break;
+            case RISK_HIGH: score.high_count++; break;
+            case RISK_MEDIUM: score.medium_count++; break;
+            case RISK_LOW: score.low_count++; break;
+            default: break;
+        }
+    }
+    score.total_findings = total_findings;
+    
+    printf("\n");
+    ui_print_spacing();
+    
+    /* Generate Report */
+    generate_report(all_findings, total_findings, &score, opts.report_format, 
+                   opts.report_file);
+    
+    if (opts.report_format == REPORT_JSON) {
+        LOG_msg(RISK_INFO, "Report saved to: %s", opts.report_file);
+    } else if (opts.report_format == REPORT_HTML) {
+        LOG_msg(RISK_INFO, "Report saved to: %s", opts.report_file);
+    }
+    
+    free(all_findings);
+    LOG_cleanup();
+
+
+    // if (argc < 3) {
+    // fprintf(stderr,
+    //     "Usage: %s <time> <interval_ms>\n",
+    //     argv[0]);
+    // return 1;
+    // }
+
+    // int time = atoi(argv[1]);
+    // int interval = atoi(argv[2]);
+
+
 }
